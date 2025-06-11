@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Widget Carrinho</title>
+  <style>
+    body{margin:0;font-family:sans-serif;}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
+    .card{border:1px solid #ddd;padding:8px;text-align:center;border-radius:6px;}
+    .card img{width:100%;height:auto;}
+    .card button{margin-top:6px;padding:6px 10px;border:none;border-radius:4px;background:#0077cc;color:#fff;cursor:pointer;}
+    #viewCart{position:fixed;bottom:16px;right:16px;padding:10px 14px;border:none;background:#28a745;color:#fff;border-radius:4px;cursor:pointer;}
+    #cartModal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;}
+    #cartContent{background:#fff;padding:16px;border-radius:6px;max-width:90%;max-height:80%;overflow:auto;}
+  </style>
+</head>
+<body>
+
+  <div class="grid" id="productGrid"></div>
+  <button id="viewCart">🛒</button>
+
+  <div id="cartModal">
+    <div id="cartContent"></div>
+  </div>
+
+  <script>
+    // === CONFIGURAÇÃO ===
+    const businessEmail = "EMAIL_DO_CLIENTE_PAYPAL";
+    const mbwayNumber   = "910000000";
+
+    // === PRODUTOS ===
+    const products = [
+      { id:"foto-001", name:"Nascer do Sol",       price:25.00, image:"https://seusite.com/imagens/foto1.jpg" },
+      { id:"foto-002", name:"Mar Tranquilo",       price:30.00, image:"https://seusite.com/imagens/foto2.jpg" },
+      { id:"foto-003", name:"Floresta Encantada",  price:20.00, image:"https://seusite.com/imagens/foto3.jpg" }
+    ];
+
+    // === CESTO via localStorage ===
+    let cart = JSON.parse(localStorage.getItem("cart") || "[]");
+    function saveCart(){ localStorage.setItem("cart", JSON.stringify(cart)); }
+
+    function renderProducts(){
+      const grid = document.getElementById("productGrid");
+      products.forEach(p => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <img src="${p.image}" alt="${p.name}">
+          <div>${p.name}</div>
+          <div>€${p.price.toFixed(2)}</div>
+          <button onclick="addToCart('${p.id}')">+ Carrinho</button>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function addToCart(id){
+      cart.push(id); saveCart();
+      // não redireciona, só mostra alerta
+      alert("✅ Adicionado ao cesto");
+    }
+
+    function summarizeCart(){
+      return cart.reduce((acc,id)=>{ acc[id]=(acc[id]||0)+1; return acc; }, {});
+    }
+    function calculateTotal(){
+      return cart.reduce((s,id)=>{
+        const p = products.find(x=>x.id===id);
+        return s + (p? p.price:0);
+      },0);
+    }
+
+    function renderCart(){
+      const modal = document.getElementById("cartModal");
+      const content = document.getElementById("cartContent");
+      const summary = summarizeCart();
+      content.innerHTML = "<h3>Seu Cesto</h3>";
+
+      // PayPal form
+      let form = document.createElement("form");
+      form.method = "post";
+      form.action = "https://www.paypal.com/cgi-bin/webscr";
+      form.target = "_blank";
+      form.innerHTML = `
+        <input type="hidden" name="cmd"    value="_cart">
+        <input type="hidden" name="upload" value="1">
+        <input type="hidden" name="business" value="${businessEmail}">
+      `;
+      let index=1;
+      for(let id in summary){
+        const p = products.find(x=>x.id===id);
+        form.innerHTML += `
+          <input type="hidden" name="item_name_${index}" value="${p.name}">
+          <input type="hidden" name="quantity_${index}" value="${summary[id]}">
+          <input type="hidden" name="amount_${index}"   value="${p.price.toFixed(2)}">
+        `;
+        content.innerHTML += `<p>${p.name} x ${summary[id]} — €${(p.price*summary[id]).toFixed(2)}</p>`;
+        index++;
+      }
+      form.innerHTML += `<button type="submit">Pagar €${calculateTotal().toFixed(2)}</button>`;
+      content.appendChild(form);
+
+      // MB Way manual
+      const mb = document.createElement("p");
+      mb.innerHTML = `
+        <small>Ou MB Way: transfira €${calculateTotal().toFixed(2)} para ${mbwayNumber}</small>
+      `;
+      content.appendChild(mb);
+
+      // fechar
+      const btnClose = document.createElement("button");
+      btnClose.textContent = "×";
+      btnClose.onclick = ()=> modal.style.display="none";
+      btnClose.style="position:absolute;top:8px;right:8px;font-size:1.2em;border:none;background:none;cursor:pointer";
+      content.appendChild(btnClose);
+
+      modal.style.display="flex";
+    }
+
+    document.getElementById("viewCart").onclick = renderCart;
+    renderProducts();
+  </script>
+</body>
+</html>
